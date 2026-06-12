@@ -76,32 +76,34 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
         st.write("**1. ZONE ÉMETTRICE**")
         zone_emettrice = st.radio("Sélectionnez l'atelier demandeur", ["Laminage", "Tissage"], horizontal=True)
         
-        # 2. SÉLECTION VISUELLE DE LA CATÉGORIE (Boutons avec icônes)
+        # 2. SÉLECTION VISUELLE DE LA CATÉGORIE
         st.write("**2. FILTRAGE DU TYPE DE PRODUIT**")
         choix_icone = st.radio(
-            "Sélectionnez le flux :",
+            "Sélectionnez le flux indicatif :",
             ["📦 RM (Raw Material / Matières Premières)", "✨ FG (Finished Goods / Produits Finis)"],
             horizontal=True
         )
         
-        # Extraction du type simplifié (RM ou FG) selon le choix du bouton
-        type_selectionne = "RM" if "RM" in choix_icone else "FG"
-        
-        # 3. RÉFÉRENCES FILTRÉES ET AFFICHÉES
+        # 3. TOUTES LES RÉFÉRENCES ARTICLE (INDEXÉ COMPLET DEPUIS EXCEL)
         st.write("**3. RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
         
-        # Filtrage en temps réel de votre base de données selon le type sélectionné
-        df_filtre = st.session_state.historique_ot[st.session_state.historique_ot['Catégorie'] == type_selectionne].copy()
-        df_filtre['Affichage'] = df_filtre['Reference'] + " | " + df_filtre['Description']
-        liste_options = df_filtre['Affichage'].dropna().unique()
+        # Copie complète de la base de données sans aucun filtre de type
+        df_tous_articles = st.session_state.historique_ot.copy()
+        df_tous_articles['Affichage'] = df_tous_articles['Reference'] + " | " + df_tous_articles['Description']
+        liste_complete = df_tous_articles['Affichage'].dropna().unique()
         
-        if len(liste_options) > 0:
-            option_choisie = st.selectbox(f"Sélectionnez parmi les références {type_selectionne} disponibles", options=liste_options)
+        if len(liste_complete) > 0:
+            # L'opérateur a accès à absolument TOUT le tableau Excel ici
+            option_choisie = st.selectbox("Sélectionnez une référence parmi toute la base Excel", options=liste_complete)
             ref_extraite = option_choisie.split(" | ")[0]
             desc_extraite = option_choisie.split(" | ")[1] if " | " in option_choisie else ""
+            
+            # Détection automatique du vrai type de l'article sélectionné pour l'envoyer à SAP
+            type_reel = df_tous_articles[df_tous_articles['Reference'] == ref_extraite]['Catégorie'].values[0]
+            st.caption(f"ℹ️ *Article détecté dans Excel comme type : **{type_reel}***")
         else:
-            st.warning(f"⚠️ Aucune référence trouvée pour le type {type_selectionne} dans votre fichier.")
-            ref_extraite, desc_extraite = "---", ""
+            st.warning("⚠️ Aucune donnée trouvée dans votre fichier data_entrepot.csv.")
+            ref_extraite, desc_extraite, type_reel = "---", "", "RM"
         
         # 4. QUANTITÉ DEMANDÉE
         st.write("**4. QUANTITÉ DEMANDÉE**")
@@ -123,7 +125,7 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
                 "Statut": "Occupé (Demande reçue)",
                 "Dernier Scan": f"Opérateur - {datetime.datetime.now().strftime('%H:%M')}",
                 "Urgence": urgence,
-                "Catégorie": type_selectionne,
+                "Catégorie": type_reel,
                 "Zone Emettrice": zone_emettrice
             }
             st.session_state.historique_ot = pd.concat([pd.DataFrame([nouvel_ordre]), st.session_state.historique_ot], ignore_index=True)
