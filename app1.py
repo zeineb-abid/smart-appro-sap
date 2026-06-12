@@ -9,77 +9,39 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CHARGEMENT DYNAMIQUE DE VOTRE FICHIER (data_entrepot.csv) ---
+# --- BASE DE DONNÉES RÉELLES (Extraite de votre onglet DATA) ---
 @st.cache_data
 def charger_donnees_reelles():
-    try:
-        # 1. ESSAI DE LECTURE AVEC DETECTION DU SEPARATEUR EXCEL (; ou ,)
-        try:
-            df = pd.read_csv("data_entrepot.csv", sep=";")
-            if len(df.columns) <= 1:
-                df = pd.read_csv("data_entrepot.csv", sep=",")
-        except:
-            df = pd.read_csv("data_entrepot.csv", sep=",")
-        
-        df_clean = pd.DataFrame()
-        
-        # Nettoyage des noms de colonnes (supprime les espaces avant/après)
-        df.columns = [str(c).strip() for c in df.columns]
-        
-        # 2. Récupération intelligente de la colonne Code Article / Material
-        col_ref = [c for c in df.columns if 'material' in c.lower() or 'ref' in c.lower() or 'art' in c.lower() or 'part' in c.lower()]
-        if col_ref:
-            df_clean['Reference'] = df[col_ref[0]].astype(str)
-        else:
-            # Si aucun nom ne correspond, on prend la 2ème colonne (souvent Material après 'ALL')
-            df_clean['Reference'] = df.iloc[:, min(1, len(df.columns)-1)].astype(str)
-            
-        # 3. Récupération intelligente de la Description
-        col_desc = [c for c in df.columns if 'desc' in c.lower() or 'mat' in c.lower() or 'part' in c.lower()]
-        if len(col_desc) > 1:
-            # On évite de reprendre la colonne du code matériel si elle contient 'material'
-            col_desc = [c for c in col_desc if 'desc' in c.lower() or 'text' in c.lower()]
-            
-        if col_desc:
-            df_clean['Description'] = df[col_desc[0]].astype(str)
-        else:
-            df_clean['Description'] = "Description Article"
-            
-        # 4. Récupération dynamique du Type (RM / FG)
-        col_type = [c for c in df.columns if 'type' in c.lower() or 'class' in c.lower() or 'cat' in c.lower()]
-        if col_type:
-            df_clean['Catégorie'] = df[col_type[0]].astype(str).str.strip().str.upper()
-        else:
-            # Si l'article commence par 3502 ou contient LAM/FG, on devine que c'est un Produit Fini (FG)
-            types_detectes = []
-            for idx, row in df_clean.iterrows():
-                ref_val = row['Reference'].lower()
-                desc_val = str(df.iloc[idx].get('Material Description', '')).lower()
-                if 'fg' in ref_val or 'lam' in desc_val or ref_val.startswith('350'):
-                    types_detectes.append('FG')
-                else:
-                    types_detectes.append('RM')
-            df_clean['Catégorie'] = types_detectes
-            
-        # 5. Paramètres de simulation pour l'adressage SAP
-        df_clean['Adresse SAP'] = [f"EXT-A{i:02d}-R01-N02" for i in range(1, len(df_clean) + 1)]
-        df_clean['Zone Physique'] = "Zone Extension"
-        df_clean['Statut'] = "Disponible"
-        df_clean['Dernier Scan'] = "Système (Initialisé)"
-        df_clean['Urgence'] = "NORMAL"
-        df_clean['Zone Emettrice'] = "Laminage"
-        
-        # Nettoyage des ".0" si les codes SAP ont été transformés en nombres par Excel
-        df_clean['Reference'] = df_clean['Reference'].apply(lambda x: x.split('.')[0] if x.endswith('.0') else x)
-        
-        return df_clean
-        
-    except Exception as e:
-        # Données de secours en cas de problème de lecture critique du fichier
-        return pd.DataFrame([
-            {"Reference": "332014278", "Description": "TWY-PES FTF1X320 TMR CHINE", "Catégorie": "RM", "Adresse SAP": "EXT-A01-R01-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Laminage"},
-            {"Reference": "332002171", "Description": "LAM-NILO NEGRO GRIS 1900MM 4MM", "Catégorie": "FG", "Adresse SAP": "EXT-A02-R05-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Tissage"}
-        ])
+    # Injection directe de vos références et descriptions pour garantir le fonctionnement en live
+    donnees_usine = [
+        {"Reference": "332011685", "Description": "YAR-PES FTF 1X320216 TM CHINE FONCE HYS", "Catégorie": "RM"},
+        {"Reference": "332007206", "Description": "YAR-PES FTF 2X170/48 TM NOIR FIFTY", "Catégorie": "RM"},
+        {"Reference": "332014278", "Description": "TWY-PES FTF1X320 TMR CHINE FON 100TS TTG", "Catégorie": "RM"},
+        {"Reference": "332002171", "Description": "LAM-NILO NEGRO GRIS 1900MM 4MM", "Catégorie": "FG"},
+        {"Reference": "331001767", "Description": "SILICON SERGE NOIR CAL TSC L2000", "Catégorie": "FG"},
+        {"Reference": "331001927", "Description": "CURITIBA G282 MISTRAL HZD L1920", "Catégorie": "FG"},
+        {"Reference": "331002436", "Description": "NILO GREY L1920", "Catégorie": "FG"},
+        {"Reference": "331017466", "Description": "CURITIBA G345BITON BLANC SONIC HWL L1920", "Catégorie": "FG"},
+        {"Reference": "332016319", "Description": "YAR-PES FTF 2X177/48 TM BISE ANTEX", "Catégorie": "RM"},
+        {"Reference": "332016333", "Description": "TWS-PES FTF2X167chine1NOI/1SlatGray100/S", "Catégorie": "RM"},
+        {"Reference": "300424160", "Description": "ENV EC CIRTF 30PES2150TR", "Catégorie": "RM"},
+        {"Reference": "331021623", "Description": "ENV BL CIRTF 42PES 2050 TR", "Catégorie": "RM"},
+        {"Reference": "350277049", "Description": "LAM-CLIP TITANCHWARZ 1MM VW216", "Catégorie": "FG"},
+        {"Reference": "332014315", "Description": "WA-MELLOW 1 X 320 CHINE P231X26 HYS", "Catégorie": "RM"},
+        {"Reference": "332014358", "Description": "TWY-PES FTF 3X177 ECRU RECY 150TS-TTG", "Catégorie": "RM"}
+    ]
+    
+    df_clean = pd.DataFrame(donnees_usine)
+    
+    # Génération automatique des paramètres logistiques pour la démonstration
+    df_clean['Adresse SAP'] = [f"EXT-A{i:02d}-R02-N03" for i in range(1, len(df_clean) + 1)]
+    df_clean['Zone Physique'] = "Zone Extension"
+    df_clean['Statut'] = "Disponible"
+    df_clean['Dernier Scan'] = "Système (Initialisé)"
+    df_clean['Urgence'] = "NORMAL"
+    df_clean['Zone Emettrice'] = "Laminage"
+    
+    return df_clean
 
 if 'historique_ot' not in st.session_state:
     st.session_state.historique_ot = charger_donnees_reelles()
@@ -109,7 +71,7 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
             horizontal=True
         )
         
-        # 3. BARRE DE RECHERCHE DYNAMIQUE (AUTO-COMPLÉTION DEPUIS EXCEL)
+        # 3. BARRE DE RECHERCHE DYNAMIQUE (VRAIES RÉFÉRENCES INTÉGRÉES)
         st.write("**3. 🔍 RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
         
         df_tous_articles = st.session_state.historique_ot.copy()
@@ -131,7 +93,7 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
             type_reel = type_lignes[0] if len(type_lignes) > 0 else "RM"
             st.caption(f"ℹ️ *Type détecté automatiquement dans la base de données : **{type_reel}***")
         else:
-            st.warning("⚠️ Base de données vide ou introuvable. Vérifiez votre fichier data_entrepot.csv")
+            st.warning("⚠️ Base de données vide.")
             ref_extraite, desc_extraite, type_reel = "---", "", "RM"
         
         # 4. QUANTITÉ DEMANDÉE
