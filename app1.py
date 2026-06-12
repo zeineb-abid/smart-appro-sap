@@ -13,33 +13,38 @@ st.set_page_config(
 @st.cache_data
 def charger_donnees_reelles():
     try:
-        # Lecture de votre fichier Excel enregistré sous le nom data_entrepot.csv
-        df = pd.read_csv("data_entrepot.csv", sep=",")
+        # 1. ESSAI DE LECTURE AVEC DETECTION AUTOMATIQUE DU SEPARATEUR EXCEL (; ou ,)
+        try:
+            df = pd.read_csv("data_entrepot.csv", sep=";")
+            if len(df.columns) <= 1:
+                df = pd.read_csv("data_entrepot.csv", sep=",")
+        except:
+            df = pd.read_csv("data_entrepot.csv", sep=",")
         
         df_clean = pd.DataFrame()
         
-        # 1. Récupération du Code Article / Material
-        col_ref = [c for c in df.columns if 'material' in c.lower() or 'ref' in c.lower() or 'art' in c.lower()]
+        # 2. Récupération dynamique de la colonne Code Article / Material
+        col_ref = [c for c in df.columns if 'material' in c.lower() or 'ref' in c.lower() or 'art' in c.lower() or 'part' in c.lower()]
         if col_ref:
             df_clean['Reference'] = df[col_ref[0]].astype(str)
         else:
             df_clean['Reference'] = df.iloc[:, 1].astype(str)
             
-        # 2. Récupération de la Description
-        col_desc = [c for c in df.columns if 'desc' in c.lower() or 'mat' in c.lower()]
+        # 3. Récupération dynamique de la Description
+        col_desc = [c for c in df.columns if 'desc' in c.lower() or 'mat' in c.lower() or 'part' in c.lower()]
         if col_desc:
             df_clean['Description'] = df[col_desc[0]].astype(str)
         else:
             df_clean['Description'] = "Description Article"
             
-        # 3. Récupération du Type (RM / FG)
-        col_type = [c for c in df.columns if 'type' in c.lower()]
+        # 4. Récupération dynamique du Type (RM / FG)
+        col_type = [c for c in df.columns if 'type' in c.lower() or 'class' in c.lower()]
         if col_type:
             df_clean['Catégorie'] = df[col_type[0]].astype(str).str.strip().str.upper()
         else:
             df_clean['Catégorie'] = "RM"
             
-        # 4. Génération des données de simulation pour l'adressage SAP
+        # 5. Paramètres de simulation pour l'adressage SAP
         df_clean['Adresse SAP'] = [f"EXT-A{i:02d}-R01-N02" for i in range(1, len(df_clean) + 1)]
         df_clean['Zone Physique'] = "Zone Extension"
         df_clean['Statut'] = "Disponible"
@@ -50,7 +55,7 @@ def charger_donnees_reelles():
         return df_clean
         
     except Exception as e:
-        # Données de secours si le fichier n'est pas encore détecté
+        # Données de sécurité si le fichier csv sur GitHub rencontre un problème majeur
         return pd.DataFrame([
             {"Reference": "332014278", "Description": "TWY-PES FTF1X320 TMR CHINE", "Catégorie": "RM", "Adresse SAP": "EXT-A01-R01-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Laminage"},
             {"Reference": "332002171", "Description": "LAM-NILO NEGRO GRIS 1900MM 4MM", "Catégorie": "FG", "Adresse SAP": "EXT-A02-R05-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Tissage"}
@@ -84,28 +89,29 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
             horizontal=True
         )
         
-        # 3. BARRE DE RECHERCHE DYNAMIQUE (PROPOSITION AUTOMATIQUE EXCEL)
+        # 3. BARRE DE RECHERCHE DYNAMIQUE (AUTO-COMPLÉTION DEPUIS EXCEL)
         st.write("**3. 🔍 RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
         
-        # Récupération de toutes les lignes de votre tableau Excel
+        # Récupération complète de toutes les données chargées
         df_tous_articles = st.session_state.historique_ot.copy()
         df_tous_articles['Affichage'] = df_tous_articles['Reference'] + " | " + df_tous_articles['Description']
         liste_complete = list(df_tous_articles['Affichage'].dropna().unique())
         
         if len(liste_complete) > 0:
-            # Ce champ permet d'écrire au clavier et propose les suggestions en temps réel
+            # Champ de saisie prédictive : l'utilisateur tape et les suggestions apparaissent
             option_choisie = st.selectbox(
                 "👉 Commencez à écrire votre référence ou le nom de l'article :", 
                 options=liste_complete,
                 index=0,
-                help="Saisie prédictive : tapez les premiers chiffres pour filtrer instantanément la base Excel."
+                help="Saisie interactive : écrivez les premiers chiffres pour filtrer en temps réel."
             )
             
             ref_extraite = option_choisie.split(" | ")[0]
             desc_extraite = option_choisie.split(" | ")[1] if " | " in option_choisie else ""
             
-            # Identification automatique du type réel lié à l'article écrit
-            type_reel = df_tous_articles[df_tous_articles['Reference'] == ref_extraite]['Catégorie'].values[0]
+            # Détection automatique du type (RM ou FG) de l'article choisi pour l'enregistrement SAP
+            type_lignes = df_tous_articles[df_tous_articles['Reference'] == ref_extraite]['Catégorie'].values
+            type_reel = type_lignes[0] if len(type_lignes) > 0 else "RM"
             st.caption(f"ℹ️ *Type détecté automatiquement dans la base de données : **{type_reel}***")
         else:
             st.warning("⚠️ Base de données introuvable. Vérifiez votre fichier data_entrepot.csv")
