@@ -50,7 +50,7 @@ def charger_donnees_reelles():
         return df_clean
         
     except Exception as e:
-        # Données de secours si le fichier n'est pas encore accessible
+        # Données de secours si le fichier n'est pas encore détecté
         return pd.DataFrame([
             {"Reference": "332014278", "Description": "TWY-PES FTF1X320 TMR CHINE", "Catégorie": "RM", "Adresse SAP": "EXT-A01-R01-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Laminage"},
             {"Reference": "332002171", "Description": "LAM-NILO NEGRO GRIS 1900MM 4MM", "Catégorie": "FG", "Adresse SAP": "EXT-A02-R05-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Tissage"}
@@ -84,31 +84,31 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
             horizontal=True
         )
         
-        # 3. BARRE DE RECHERCHE TEXTUELLE POUR LA RÉFÉRENCE ARTICLE
+        # 3. BARRE DE RECHERCHE DYNAMIQUE (PROPOSITION AUTOMATIQUE EXCEL)
         st.write("**3. 🔍 RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
         
-        # Copie complète de la base de données Excel
+        # Récupération de toutes les lignes de votre tableau Excel
         df_tous_articles = st.session_state.historique_ot.copy()
         df_tous_articles['Affichage'] = df_tous_articles['Reference'] + " | " + df_tous_articles['Description']
         liste_complete = list(df_tous_articles['Affichage'].dropna().unique())
         
         if len(liste_complete) > 0:
-            # Remplacement par une boîte de saisie/recherche textuelle avec icône intégrée
+            # Ce champ permet d'écrire au clavier et propose les suggestions en temps réel
             option_choisie = st.selectbox(
-                "⌨️ Tapez ou écrivez la référence / description de l'article :", 
+                "👉 Commencez à écrire votre référence ou le nom de l'article :", 
                 options=liste_complete,
                 index=0,
-                help="Saisissez les premiers caractères de votre code SAP (ex: 3320...) pour filtrer instantanément."
+                help="Saisie prédictive : tapez les premiers chiffres pour filtrer instantanément la base Excel."
             )
             
             ref_extraite = option_choisie.split(" | ")[0]
             desc_extraite = option_choisie.split(" | ")[1] if " | " in option_choisie else ""
             
-            # Détection automatique du vrai type de l'article sélectionné pour l'envoyer à SAP
+            # Identification automatique du type réel lié à l'article écrit
             type_reel = df_tous_articles[df_tous_articles['Reference'] == ref_extraite]['Catégorie'].values[0]
-            st.caption(f"ℹ️ *Article détecté dans Excel comme type : **{type_reel}***")
+            st.caption(f"ℹ️ *Type détecté automatiquement dans la base de données : **{type_reel}***")
         else:
-            st.warning("⚠️ Aucune donnée trouvée dans votre fichier data_entrepot.csv.")
+            st.warning("⚠️ Base de données introuvable. Vérifiez votre fichier data_entrepot.csv")
             ref_extraite, desc_extraite, type_reel = "---", "", "RM"
         
         # 4. QUANTITÉ DEMANDÉE
