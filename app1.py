@@ -84,17 +84,23 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
             horizontal=True
         )
         
-        # 3. TOUTES LES RÉFÉRENCES ARTICLE (INDEXÉ COMPLET DEPUIS EXCEL)
-        st.write("**3. RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
+        # 3. BARRE DE RECHERCHE TEXTUELLE POUR LA RÉFÉRENCE ARTICLE
+        st.write("**3. 🔍 RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
         
-        # Copie complète de la base de données sans aucun filtre de type
+        # Copie complète de la base de données Excel
         df_tous_articles = st.session_state.historique_ot.copy()
         df_tous_articles['Affichage'] = df_tous_articles['Reference'] + " | " + df_tous_articles['Description']
-        liste_complete = df_tous_articles['Affichage'].dropna().unique()
+        liste_complete = list(df_tous_articles['Affichage'].dropna().unique())
         
         if len(liste_complete) > 0:
-            # L'opérateur a accès à absolument TOUT le tableau Excel ici
-            option_choisie = st.selectbox("Sélectionnez une référence parmi toute la base Excel", options=liste_complete)
+            # Remplacement par une boîte de saisie/recherche textuelle avec icône intégrée
+            option_choisie = st.selectbox(
+                "⌨️ Tapez ou écrivez la référence / description de l'article :", 
+                options=liste_complete,
+                index=0,
+                help="Saisissez les premiers caractères de votre code SAP (ex: 3320...) pour filtrer instantanément."
+            )
+            
             ref_extraite = option_choisie.split(" | ")[0]
             desc_extraite = option_choisie.split(" | ")[1] if " | " in option_choisie else ""
             
