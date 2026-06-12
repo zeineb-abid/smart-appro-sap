@@ -13,7 +13,7 @@ st.set_page_config(
 @st.cache_data
 def charger_donnees_reelles():
     try:
-        # 1. ESSAI DE LECTURE AVEC DETECTION AUTOMATIQUE DU SEPARATEUR EXCEL (; ou ,)
+        # 1. ESSAI DE LECTURE AVEC DETECTION DU SEPARATEUR EXCEL (; ou ,)
         try:
             df = pd.read_csv("data_entrepot.csv", sep=";")
             if len(df.columns) <= 1:
@@ -23,26 +23,43 @@ def charger_donnees_reelles():
         
         df_clean = pd.DataFrame()
         
-        # 2. Récupération dynamique de la colonne Code Article / Material
+        # Nettoyage des noms de colonnes (supprime les espaces avant/après)
+        df.columns = [str(c).strip() for c in df.columns]
+        
+        # 2. Récupération intelligente de la colonne Code Article / Material
         col_ref = [c for c in df.columns if 'material' in c.lower() or 'ref' in c.lower() or 'art' in c.lower() or 'part' in c.lower()]
         if col_ref:
             df_clean['Reference'] = df[col_ref[0]].astype(str)
         else:
-            df_clean['Reference'] = df.iloc[:, 1].astype(str)
+            # Si aucun nom ne correspond, on prend la 2ème colonne (souvent Material après 'ALL')
+            df_clean['Reference'] = df.iloc[:, min(1, len(df.columns)-1)].astype(str)
             
-        # 3. Récupération dynamique de la Description
+        # 3. Récupération intelligente de la Description
         col_desc = [c for c in df.columns if 'desc' in c.lower() or 'mat' in c.lower() or 'part' in c.lower()]
+        if len(col_desc) > 1:
+            # On évite de reprendre la colonne du code matériel si elle contient 'material'
+            col_desc = [c for c in col_desc if 'desc' in c.lower() or 'text' in c.lower()]
+            
         if col_desc:
             df_clean['Description'] = df[col_desc[0]].astype(str)
         else:
             df_clean['Description'] = "Description Article"
             
         # 4. Récupération dynamique du Type (RM / FG)
-        col_type = [c for c in df.columns if 'type' in c.lower() or 'class' in c.lower()]
+        col_type = [c for c in df.columns if 'type' in c.lower() or 'class' in c.lower() or 'cat' in c.lower()]
         if col_type:
             df_clean['Catégorie'] = df[col_type[0]].astype(str).str.strip().str.upper()
         else:
-            df_clean['Catégorie'] = "RM"
+            # Si l'article commence par 3502 ou contient LAM/FG, on devine que c'est un Produit Fini (FG)
+            types_detectes = []
+            for idx, row in df_clean.iterrows():
+                ref_val = row['Reference'].lower()
+                desc_val = str(df.iloc[idx].get('Material Description', '')).lower()
+                if 'fg' in ref_val or 'lam' in desc_val or ref_val.startswith('350'):
+                    types_detectes.append('FG')
+                else:
+                    types_detectes.append('RM')
+            df_clean['Catégorie'] = types_detectes
             
         # 5. Paramètres de simulation pour l'adressage SAP
         df_clean['Adresse SAP'] = [f"EXT-A{i:02d}-R01-N02" for i in range(1, len(df_clean) + 1)]
@@ -52,10 +69,13 @@ def charger_donnees_reelles():
         df_clean['Urgence'] = "NORMAL"
         df_clean['Zone Emettrice'] = "Laminage"
         
+        # Nettoyage des ".0" si les codes SAP ont été transformés en nombres par Excel
+        df_clean['Reference'] = df_clean['Reference'].apply(lambda x: x.split('.')[0] if x.endswith('.0') else x)
+        
         return df_clean
         
     except Exception as e:
-        # Données de sécurité si le fichier csv sur GitHub rencontre un problème majeur
+        # Données de secours en cas de problème de lecture critique du fichier
         return pd.DataFrame([
             {"Reference": "332014278", "Description": "TWY-PES FTF1X320 TMR CHINE", "Catégorie": "RM", "Adresse SAP": "EXT-A01-R01-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Laminage"},
             {"Reference": "332002171", "Description": "LAM-NILO NEGRO GRIS 1900MM 4MM", "Catégorie": "FG", "Adresse SAP": "EXT-A02-R05-N01", "Zone Physique": "Extension", "Statut": "Disponible", "Dernier Scan": "---", "Urgence": "NORMAL", "Zone Emettrice": "Tissage"}
@@ -92,13 +112,11 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
         # 3. BARRE DE RECHERCHE DYNAMIQUE (AUTO-COMPLÉTION DEPUIS EXCEL)
         st.write("**3. 🔍 RÉFÉRENCE ARTICLE (INDEXÉ SAP)**")
         
-        # Récupération complète de toutes les données chargées
         df_tous_articles = st.session_state.historique_ot.copy()
         df_tous_articles['Affichage'] = df_tous_articles['Reference'] + " | " + df_tous_articles['Description']
         liste_complete = list(df_tous_articles['Affichage'].dropna().unique())
         
         if len(liste_complete) > 0:
-            # Champ de saisie prédictive : l'utilisateur tape et les suggestions apparaissent
             option_choisie = st.selectbox(
                 "👉 Commencez à écrire votre référence ou le nom de l'article :", 
                 options=liste_complete,
@@ -109,12 +127,11 @@ if page == "1. SMART-APPRO v4.0 (Opérateur)":
             ref_extraite = option_choisie.split(" | ")[0]
             desc_extraite = option_choisie.split(" | ")[1] if " | " in option_choisie else ""
             
-            # Détection automatique du type (RM ou FG) de l'article choisi pour l'enregistrement SAP
             type_lignes = df_tous_articles[df_tous_articles['Reference'] == ref_extraite]['Catégorie'].values
             type_reel = type_lignes[0] if len(type_lignes) > 0 else "RM"
             st.caption(f"ℹ️ *Type détecté automatiquement dans la base de données : **{type_reel}***")
         else:
-            st.warning("⚠️ Base de données introuvable. Vérifiez votre fichier data_entrepot.csv")
+            st.warning("⚠️ Base de données vide ou introuvable. Vérifiez votre fichier data_entrepot.csv")
             ref_extraite, desc_extraite, type_reel = "---", "", "RM"
         
         # 4. QUANTITÉ DEMANDÉE
